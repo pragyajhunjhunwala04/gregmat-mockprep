@@ -79,6 +79,7 @@ export default function GMATMock() {
   const [showPassage, setShowPassage] = useState(false);
   const [scores, setScores] = useState([]);
   const [isReview, setIsReview] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   const timerRef = useRef(null);
   const secIdxRef = useRef(secIdx);
@@ -123,6 +124,7 @@ export default function GMATMock() {
     setQIdx(0);
     setSelected(answers[secIdx][0] ?? null);
     setIsReview(false);
+    setShowFeedback(false);
     setShowPassage(false);
     startTimer(sec.duration);
     setScreen("exam");
@@ -138,12 +140,18 @@ export default function GMATMock() {
 
   const navTo = (i) => {
     if (selected !== null) saveAnswer(secIdx, qIdx, selected);
+    setShowFeedback(false);
     setQIdx(i);
     setSelected(answers[secIdx][i] ?? null);
   };
 
-  const next = () => {
+  const submitAnswer = () => {
     if (selected !== null) saveAnswer(secIdx, qIdx, selected);
+    setShowFeedback(true);
+  };
+
+  const continueNext = () => {
+    setShowFeedback(false);
     if (qIdx < total - 1) {
       const ni = qIdx + 1;
       setQIdx(ni);
@@ -156,6 +164,7 @@ export default function GMATMock() {
   const prev = () => {
     if (qIdx > 0) {
       if (selected !== null) saveAnswer(secIdx, qIdx, selected);
+      setShowFeedback(false);
       const pi = qIdx - 1;
       setQIdx(pi);
       setSelected(answers[secIdx][pi] ?? null);
@@ -187,7 +196,7 @@ export default function GMATMock() {
   const restart = () => {
     setScreen("welcome"); setSecIdx(0); setQIdx(0);
     setAnswers([{}, {}, {}]); setFlagged([{}, {}, {}]);
-    setSelected(null); setScores([]); setIsReview(false);
+    setSelected(null); setScores([]); setIsReview(false); setShowFeedback(false);
   };
 
   const answered = Object.keys(answers[secIdx]).length;
@@ -367,37 +376,43 @@ export default function GMATMock() {
 
             <div>
               {q.options.map((opt, i) => {
-                const isSel = isReview ? answers[secIdx][qIdx] === i : selected === i;
+                const isSel = (isReview || showFeedback) ? answers[secIdx][qIdx] === i : selected === i;
                 const isCorrect = i === q.answer;
                 const isWrong = isSel && !isCorrect;
                 let bg = C.bg, border = C.border, col = C.text;
-                if (isReview && isCorrect) { bg = "rgba(62,207,122,.08)"; border = "rgba(62,207,122,.5)"; col = C.green; }
-                else if (isReview && isWrong) { bg = "rgba(240,82,82,.08)"; border = "rgba(240,82,82,.4)"; col = C.red; }
+                if ((isReview || showFeedback) && isCorrect) { bg = "rgba(62,207,122,.08)"; border = "rgba(62,207,122,.5)"; col = C.green; }
+                else if ((isReview || showFeedback) && isWrong) { bg = "rgba(240,82,82,.08)"; border = "rgba(240,82,82,.4)"; col = C.red; }
                 else if (isSel) { bg = "rgba(91,110,245,.1)"; border = C.accent; col = "#aab4ff"; }
                 return (
-                  <div key={i} onClick={() => !isReview && setSelected(i)}
-                    style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 16px", borderRadius: 8, border: `1px solid ${border}`, background: bg, cursor: isReview ? "default" : "pointer", marginBottom: 8, color: col, transition: "all .12s" }}>
+                  <div key={i} onClick={() => !isReview && !showFeedback && setSelected(i)}
+                    style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 16px", borderRadius: 8, border: `1px solid ${border}`, background: bg, cursor: (isReview || showFeedback) ? "default" : "pointer", marginBottom: 8, color: col, transition: "all .12s" }}>
                     <div style={{ width: 22, height: 22, borderRadius: "50%", background: "#1a2040", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontFamily: C.mono, fontWeight: 700, flexShrink: 0 }}>{String.fromCharCode(65 + i)}</div>
                     <div style={{ fontSize: 13, lineHeight: 1.6, flex: 1 }}>{opt}</div>
-                    {isReview && isCorrect && <span style={{ color: C.green, fontSize: 15 }}>✓</span>}
-                    {isReview && isWrong && <span style={{ color: C.red, fontSize: 15 }}>✗</span>}
+                    {(isReview || showFeedback) && isCorrect && <span style={{ color: C.green, fontSize: 15 }}>✓</span>}
+                    {(isReview || showFeedback) && isWrong && <span style={{ color: C.red, fontSize: 15 }}>✗</span>}
                   </div>
                 );
               })}
             </div>
 
-            {isReview && (
-              <div style={{ marginTop: 16, background: "rgba(62,207,122,.06)", border: "1px solid rgba(62,207,122,.2)", borderRadius: 8, padding: "14px 18px" }}>
+            {(isReview || showFeedback) && (
+              <div style={{ marginTop: 16, background: showFeedback && selected !== q.answer ? "rgba(240,82,82,.06)" : "rgba(62,207,122,.06)", border: `1px solid ${showFeedback && selected !== q.answer ? "rgba(240,82,82,.2)" : "rgba(62,207,122,.2)"}`, borderRadius: 8, padding: "14px 18px" }}>
+                {showFeedback && (
+                  <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: selected === q.answer ? C.green : C.red, fontFamily: C.mono, marginBottom: 6 }}>
+                    {selected === q.answer ? "✓ CORRECT" : "✗ INCORRECT"}
+                  </div>
+                )}
                 <div style={{ fontSize: 9, letterSpacing: 2, color: C.green, fontFamily: C.mono, marginBottom: 8 }}>EXPLANATION</div>
                 <p style={{ fontSize: 13, color: "#80b898", lineHeight: 1.65, margin: 0 }}>{q.explanation}</p>
               </div>
             )}
 
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 22, alignItems: "center" }}>
-              <button style={btn("ghost")} onClick={prev} disabled={qIdx === 0}>← Prev</button>
+              <button style={btn("ghost")} onClick={prev} disabled={qIdx === 0 || showFeedback}>← Prev</button>
               <div style={{ display: "flex", gap: 10 }}>
-                {!isReview && qIdx < total - 1 && <button style={btn("primary")} onClick={next}>Save & Next →</button>}
-                {!isReview && qIdx === total - 1 && <button style={btn("primary")} onClick={next}>Review Answers →</button>}
+                {!isReview && !showFeedback && <button style={{ ...btn("primary"), opacity: selected === null ? 0.45 : 1 }} onClick={submitAnswer} disabled={selected === null}>Submit Answer →</button>}
+                {!isReview && showFeedback && qIdx < total - 1 && <button style={btn("primary")} onClick={continueNext}>Next Question →</button>}
+                {!isReview && showFeedback && qIdx === total - 1 && <button style={btn("primary")} onClick={continueNext}>Review Answers →</button>}
                 {isReview && qIdx < total - 1 && <button style={btn("ghost")} onClick={() => { setQIdx(i => i + 1); setSelected(answers[secIdx][qIdx + 1] ?? null); }}>Next →</button>}
                 {isReview && qIdx === total - 1 && <button style={btn("danger")} onClick={submitSection}>Submit Section ✓</button>}
               </div>

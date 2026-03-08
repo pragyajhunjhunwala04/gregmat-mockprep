@@ -64,6 +64,7 @@ export default function GREMock() {
   const [showPassage, setShowPassage] = useState(false);
   const [scores, setScores] = useState([]);
   const [isReview, setIsReview] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   const timerRef = useRef(null);
   const secIdxRef = useRef(secIdx);
@@ -101,7 +102,7 @@ export default function GREMock() {
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
   const startSection = () => {
-    setQIdx(0); setSelected(answers[secIdx][0] ?? null); setIsReview(false); setShowPassage(false);
+    setQIdx(0); setSelected(answers[secIdx][0] ?? null); setIsReview(false); setShowFeedback(false); setShowPassage(false);
     startTimer(sec.duration); setScreen("exam");
   };
 
@@ -109,16 +110,21 @@ export default function GREMock() {
     setAnswers(prev => { const next = prev.map(s => ({ ...s })); next[si][qi] = val; return next; });
   };
 
-  const navTo = (i) => { if (selected !== null) saveAnswer(secIdx, qIdx, selected); setQIdx(i); setSelected(answers[secIdx][i] ?? null); };
+  const navTo = (i) => { if (selected !== null) saveAnswer(secIdx, qIdx, selected); setShowFeedback(false); setQIdx(i); setSelected(answers[secIdx][i] ?? null); };
 
-  const next = () => {
+  const submitAnswer = () => {
     if (selected !== null) saveAnswer(secIdx, qIdx, selected);
+    setShowFeedback(true);
+  };
+
+  const continueNext = () => {
+    setShowFeedback(false);
     if (qIdx < total - 1) { const ni = qIdx + 1; setQIdx(ni); setSelected(answers[secIdx][ni] ?? null); }
     else setIsReview(true);
   };
 
   const prev = () => {
-    if (qIdx > 0) { if (selected !== null) saveAnswer(secIdx, qIdx, selected); const pi = qIdx - 1; setQIdx(pi); setSelected(answers[secIdx][pi] ?? null); }
+    if (qIdx > 0) { if (selected !== null) saveAnswer(secIdx, qIdx, selected); setShowFeedback(false); const pi = qIdx - 1; setQIdx(pi); setSelected(answers[secIdx][pi] ?? null); }
   };
 
   const submitSection = () => { if (selected !== null) saveAnswer(secIdx, qIdx, selected); clearInterval(timerRef.current); finishSection(secIdx, answersRef.current); };
@@ -129,7 +135,7 @@ export default function GREMock() {
     setFlagged(prev => { const next = prev.map(s => ({ ...s })); next[secIdx][qIdx] = !next[secIdx][qIdx]; return next; });
   };
 
-  const restart = () => { setScreen("welcome"); setSecIdx(0); setQIdx(0); setAnswers([{}, {}]); setFlagged([{}, {}]); setSelected(null); setScores([]); setIsReview(false); };
+  const restart = () => { setScreen("welcome"); setSecIdx(0); setQIdx(0); setAnswers([{}, {}]); setFlagged([{}, {}]); setSelected(null); setScores([]); setIsReview(false); setShowFeedback(false); };
 
   const answered = Object.keys(answers[secIdx]).length;
   const flagCount = Object.values(flagged[secIdx]).filter(Boolean).length;
@@ -298,35 +304,41 @@ export default function GREMock() {
             <div style={{ fontSize: 15, lineHeight: 1.75, color: G.text, whiteSpace: "pre-wrap", marginBottom: 22 }}>{q.text}</div>
             <div>
               {q.options.map((opt, i) => {
-                const isSel = isReview ? answers[secIdx][qIdx] === i : selected === i;
+                const isSel = (isReview || showFeedback) ? answers[secIdx][qIdx] === i : selected === i;
                 const isCorrect = i === q.answer;
                 const isWrong = isSel && !isCorrect;
                 let bg = G.bg, border = G.border, col = G.text;
-                if (isReview && isCorrect) { bg = "rgba(16,185,129,.08)"; border = "rgba(16,185,129,.5)"; col = G.green; }
-                else if (isReview && isWrong) { bg = "rgba(239,68,68,.08)"; border = "rgba(239,68,68,.4)"; col = G.red; }
+                if ((isReview || showFeedback) && isCorrect) { bg = "rgba(16,185,129,.08)"; border = "rgba(16,185,129,.5)"; col = G.green; }
+                else if ((isReview || showFeedback) && isWrong) { bg = "rgba(239,68,68,.08)"; border = "rgba(239,68,68,.4)"; col = G.red; }
                 else if (isSel) { bg = "rgba(20,184,166,.1)"; border = G.accent; col = "#7eeee8"; }
                 return (
-                  <div key={i} onClick={() => !isReview && setSelected(i)}
-                    style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 16px", borderRadius: 8, border: `1px solid ${border}`, background: bg, cursor: isReview ? "default" : "pointer", marginBottom: 8, color: col, transition: "all .12s" }}>
+                  <div key={i} onClick={() => !isReview && !showFeedback && setSelected(i)}
+                    style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 16px", borderRadius: 8, border: `1px solid ${border}`, background: bg, cursor: (isReview || showFeedback) ? "default" : "pointer", marginBottom: 8, color: col, transition: "all .12s" }}>
                     <div style={{ width: 22, height: 22, borderRadius: "50%", background: "#0e2030", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontFamily: G.mono, fontWeight: 700, flexShrink: 0 }}>{String.fromCharCode(65 + i)}</div>
                     <div style={{ fontSize: 13, lineHeight: 1.6, flex: 1 }}>{opt}</div>
-                    {isReview && isCorrect && <span style={{ color: G.green, fontSize: 15 }}>✓</span>}
-                    {isReview && isWrong && <span style={{ color: G.red, fontSize: 15 }}>✗</span>}
+                    {(isReview || showFeedback) && isCorrect && <span style={{ color: G.green, fontSize: 15 }}>✓</span>}
+                    {(isReview || showFeedback) && isWrong && <span style={{ color: G.red, fontSize: 15 }}>✗</span>}
                   </div>
                 );
               })}
             </div>
-            {isReview && (
-              <div style={{ marginTop: 16, background: "rgba(16,185,129,.06)", border: "1px solid rgba(16,185,129,.2)", borderRadius: 8, padding: "14px 18px" }}>
+            {(isReview || showFeedback) && (
+              <div style={{ marginTop: 16, background: showFeedback && selected !== q.answer ? "rgba(239,68,68,.06)" : "rgba(16,185,129,.06)", border: `1px solid ${showFeedback && selected !== q.answer ? "rgba(239,68,68,.2)" : "rgba(16,185,129,.2)"}`, borderRadius: 8, padding: "14px 18px" }}>
+                {showFeedback && (
+                  <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: selected === q.answer ? G.green : G.red, fontFamily: G.mono, marginBottom: 6 }}>
+                    {selected === q.answer ? "✓ CORRECT" : "✗ INCORRECT"}
+                  </div>
+                )}
                 <div style={{ fontSize: 9, letterSpacing: 2, color: G.green, fontFamily: G.mono, marginBottom: 8 }}>EXPLANATION</div>
                 <p style={{ fontSize: 13, color: "#6ab898", lineHeight: 1.65, margin: 0 }}>{q.explanation}</p>
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 22, alignItems: "center" }}>
-              <button style={btn("ghost")} onClick={prev} disabled={qIdx === 0}>← Prev</button>
+              <button style={btn("ghost")} onClick={prev} disabled={qIdx === 0 || showFeedback}>← Prev</button>
               <div style={{ display: "flex", gap: 10 }}>
-                {!isReview && qIdx < total - 1 && <button style={btn("primary")} onClick={next}>Save & Next →</button>}
-                {!isReview && qIdx === total - 1 && <button style={btn("primary")} onClick={next}>Review Answers →</button>}
+                {!isReview && !showFeedback && <button style={{ ...btn("primary"), opacity: selected === null ? 0.45 : 1 }} onClick={submitAnswer} disabled={selected === null}>Submit Answer →</button>}
+                {!isReview && showFeedback && qIdx < total - 1 && <button style={btn("primary")} onClick={continueNext}>Next Question →</button>}
+                {!isReview && showFeedback && qIdx === total - 1 && <button style={btn("primary")} onClick={continueNext}>Review Answers →</button>}
                 {isReview && qIdx < total - 1 && <button style={btn("ghost")} onClick={() => { setQIdx(i => i + 1); setSelected(answers[secIdx][qIdx + 1] ?? null); }}>Next →</button>}
                 {isReview && qIdx === total - 1 && <button style={btn("danger")} onClick={submitSection}>Submit Section ✓</button>}
               </div>
